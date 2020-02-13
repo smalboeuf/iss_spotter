@@ -1,16 +1,6 @@
 const request = require('request');
 
-/**
- * Makes a single API request to retrieve the user's IP address.
- * Input:
- *   - A callback (to pass back an error or the IP string)
- * Returns (via Callback):
- *   - An error, if any (nullable)
- *   - The IP address as a string (null if error). Example: "162.245.144.188"
- */
 
-//IPV4: $ curl 'https://api.ipify.org?format=json'
-//              {"ip":"67.71.216.6"}
 
 const fetchMyIP = (callback) => {
   //use request to fetch IP address  from JSON API
@@ -19,21 +9,19 @@ const fetchMyIP = (callback) => {
 
   request(URL, (error, response, body) => {
 
+    if (error) {
+      return callback(error, null);
+    } else if (response.statusCode !== 200) {
+      const msg = `Status Code ${response.statusCode} when fetching coordinates for IP. Response: ${body}`;
+      callback(Error(msg), null);
+      return;
+    } else {
 
-    try {
       let data = JSON.parse(body);
       data = data.ip;
-    } catch (e) {
-      return callback(e, null);
+
+      return callback(null, data);
     }
-
-    if (response.statusCode !== 200) {
-        const msg = `Status Code ${response.statusCode} when fetching IP. Response: ${body}`;
-        callback(Error(msg), null);
-        return;
-      }
-
-    return callback(null, data);
 
   });
 
@@ -42,33 +30,79 @@ const fetchMyIP = (callback) => {
 
 const fetchCoordsByIP = function(ip, callback) {
 
-  const URL = 'https://ipvigilante.com/'
+  const URL = 'https://ipvigilante.com/';
  
   request(URL + ip, (error, response, body) => {
     
     
-      if(error){
-        return callback(error, null);
-      } else if (response.statusCode !== 200) {
+    if (error) {
+      return callback(error, null);
+    } else if (response.statusCode !== 200) {
       const msg = `Status Code ${response.statusCode} when fetching coordinates for IP. Response: ${body}`;
       callback(Error(msg), null);
       return;
-      } else {
+    } else {
 
-        let data = JSON.parse(body);
+      let data = JSON.parse(body);
 
-        let coordinates = {
-            latitude: data.data.latitude,
-            longitude: data.data.longitude
-          };
+      let coordinates = {
+        latitude: data.data.latitude,
+        longitude: data.data.longitude
+      };
 
-        return callback(null, coordinates);
-      }
+      return callback(null, coordinates);
+    }
       
     
   });
   
 };
 
+const fetchISSFlyOverTimes = function(coords, callback) {
 
-module.exports = { fetchMyIP, fetchCoordsByIP };
+  request(`http://api.open-notify.org/iss-pass.json?lat=${coords.latitude}&lon=${coords.longitude}`, (error, response, body) => {
+    
+    if (error) {
+      return callback(error, null);
+    } else if (response.statusCode !== 200) {
+      const msg = `Status Code ${response.statusCode} when fetching coordinates for IP. Response: ${body}`;
+      callback(Error(msg), null);
+      return;
+    } else {
+
+      let data = JSON.parse(body);
+      data = data.response;
+  
+
+      return callback(null, data);
+    }
+    
+  
+  });
+};
+ 
+
+const nextISSTimesForMyLocation = function(callback) {
+  fetchMyIP((error,ip) => {
+    if (error) {
+      return callback(error, null);
+    }
+
+    fetchCoordsByIP(ip, (error, coordinates) => {
+      if (error) {
+        return callback(error, null);
+      }
+  
+      fetchISSFlyOverTimes(coordinates, (error, nextPasses) => {
+        if (error) {
+          return callback(error, null);
+        }
+
+        callback(null, nextPasses);
+      });
+    });
+  });
+};
+
+
+module.exports = { nextISSTimesForMyLocation };
